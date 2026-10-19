@@ -246,5 +246,5 @@ const Offline = (() => {
     try { const e = await navigator.storage.estimate(); return e.usage || 0; } catch { return 0; }
   }
 
-  return { load, available, meta, commune, municipality, query, downloadData, tileCoords, downloadTiles, clearAll, usage, hits };
+  return { load, available, meta, commune, municipality, query, downloadData, tileCoords, downloadTiles, clearAll, usage, hits, idbGet, idbPut };
 })();

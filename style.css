@@ -102,3 +102,8 @@ a { color: var(--green); }
 progress { width: 100%; height: 10px; }
 #offline-panel { overflow-y: auto; }
 .offline-badge { display: inline-block; font-size: 12px; background: var(--warn-bg); color: var(--warn); border-radius: 6px; padding: 1px 6px; margin-left: 6px; }
+
+.layer-list h3.group { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--green); margin: 14px 0 2px; }
+.layer-list h3.group small { color: var(--muted); font-weight: 400; }
+
+.sheet-body > .hint { margin: 4px 0 8px; font-size: 12px; }

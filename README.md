@@ -16,6 +16,16 @@ Commune paramétrée : Souzy-la-Briche (INSEE 91602), dans `CONFIG` en haut de `
 - Toucher la carte : interroge ce point (utile depuis un ordinateur).
 - Le panneau du bas se déplie en touchant sa poignée.
 
+## Réseaux (open data)
+
+L'app charge les réseaux publiés en open data sur l'emprise de la commune et signale ceux à moins de 15 m :
+- électricité Enedis (lignes HTA/BT aériennes et souterraines, postes, poteaux) — data.enedis.fr ;
+- haute tension RTE et gazoducs de transport GRTgaz — ODRÉ (odre.opendatasoft.com).
+
+Tracés indicatifs : ils ne remplacent pas une DT-DICT. L'eau potable, l'assainissement et la distribution
+de gaz (GRDF) ne sont pas publiés en open data ; les plans s'obtiennent auprès du syndicat ou du délégataire,
+ou via le Guichet unique (reseaux-et-canalisations.ineris.fr).
+
 ## Hors ligne
 
 Bouton **⇩** en haut : « Télécharger la commune » (avec du réseau, idéalement en Wi-Fi).

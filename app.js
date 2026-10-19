@@ -16,8 +16,13 @@ const CONFIG = {
   // Couches WMS cochées par défaut : noms ou titres qui correspondent à ces motifs
   defaultLayerPatterns: [/parcel|cadastr/i, /zone_urba|zone_secteur|zonage/i, /assiette|servitude|\bsup\b|sup_/i,
     /prescription/i, /info_surf|information/i, /secteur_cc/i, /psmv/i],
-  // Motifs qui rendent une couche « pertinente » (liste courte par défaut)
-  relevantLayerPatterns: /cadastr|parcel|urba|plu|\bdu\b|du_|psmv|sup|servitude|assiette|generateur|prescription|info|secteur|monument|patrimoine|site|ac1|ac2|ac3|ac4|spr|zppaup|ppr|risque|gpu/i,
+  // Couches proposées dans le menu ☰, par thème (les autres restent accessibles par la recherche)
+  layerThemes: [
+    { name: 'Cadastre', re: /cadastr|parcel/i },
+    { name: 'Urbanisme (PLU, carte communale)', re: /zone_urba|zone_secteur|zonage|secteur_cc|prescription|info_(surf|lin|pct)|psmv|document_urba|\bplu\b|\bdu\b/i },
+    { name: 'Servitudes d\'utilité publique', re: /assiette|generateur|servitude|\bsup\b|sup_|\bac[1-4]\b/i },
+    { name: 'Patrimoine, nature, risques', re: /monument|patrimoine|site_(inscrit|classe)|sites? (inscrit|classé)|znieff|natura|ppr[nmt]?\b|risque|inondation|zone_humide|espace_bois/i }
+  ],
   followMinDistance: 15,  // m
   followMinInterval: 5000 // ms
 };
@@ -111,6 +116,31 @@ async function loadCommune() {
     const m = await fetchJson(apicarto('/gpu/municipality', { insee: CONFIG.insee }));
     state.municipality = m.features?.[0]?.properties || null;
   } catch (e) { state.municipality = Offline.municipality(); }
+  ensureReseaux();
+}
+
+// ---------------------------------------------------------------- réseaux (Enedis, RTE, GRTgaz)
+let reseauxLayer = null, reseauxLoading = false;
+function refreshReseauxLayer() {
+  const wasOn = reseauxLayer && map.hasLayer(reseauxLayer);
+  if (reseauxLayer) { map.removeLayer(reseauxLayer); layersCtl.removeLayer(reseauxLayer); }
+  reseauxLayer = Reseaux.layer();
+  layersCtl.addOverlay(reseauxLayer, 'Réseaux électricité et gaz (open data)');
+  if (wasOn || store.get('showReseaux', true)) reseauxLayer.addTo(map);
+}
+map.on('overlayadd overlayremove', (e) => { if (e.layer === reseauxLayer) store.set('showReseaux', e.type === 'overlayadd'); });
+
+// Téléchargement automatique des réseaux sur la commune (rafraîchi tous les 30 jours)
+async function ensureReseaux() {
+  const d = Reseaux.get();
+  const fresh = d && Date.now() - new Date(d.date).getTime() < 30 * 864e5;
+  if (fresh || reseauxLoading || !navigator.onLine) return;
+  const bbox = offlineBbox();
+  if (!bbox) return;
+  reseauxLoading = true;
+  try { await Reseaux.download(bbox); refreshReseauxLayer(); }
+  catch (e) { console.warn('Réseaux indisponibles', e); }
+  finally { reseauxLoading = false; }
 }
 const lastView = store.get('lastView');
 if (lastView) map.setView(lastView.c, lastView.z);
@@ -164,20 +194,41 @@ async function loadCapabilities() {
   }
 }
 
+function layerTheme(l) {
+  const t = CONFIG.layerThemes.find((th) => th.re.test(l.name) || th.re.test(l.title));
+  return t ? t.name : null;
+}
+
+// Par défaut : couches cochées puis couches utiles groupées par thème. Recherche ou « toutes » : tout le service.
 function renderLayerList() {
   const q = $('#layer-filter').value.trim().toLowerCase();
   const all = $('#show-all-layers').checked;
-  const rows = state.wmsLayers.filter((l) =>
-    (all || state.selected.has(l.name) || CONFIG.relevantLayerPatterns.test(l.name) || CONFIG.relevantLayerPatterns.test(l.title)) &&
-    (!q || l.name.toLowerCase().includes(q) || l.title.toLowerCase().includes(q)));
-  const list = $('#layer-list');
-  if (!rows.length) { list.innerHTML = '<p class="empty">Aucune couche ne correspond.</p>'; return; }
-  list.innerHTML = rows.slice(0, 400).map((l) => `
+  const match = (l) => !q || l.name.toLowerCase().includes(q) || l.title.toLowerCase().includes(q);
+  const groups = new Map([['Couches affichées', []]]);
+  for (const th of CONFIG.layerThemes) groups.set(th.name, []);
+  groups.set('Autres couches du service', []);
+  for (const l of state.wmsLayers) {
+    if (!match(l)) continue;
+    if (state.selected.has(l.name)) { groups.get('Couches affichées').push(l); continue; }
+    const th = layerTheme(l);
+    if (th) groups.get(th).push(l);
+    else if (all || q) groups.get('Autres couches du service').push(l);
+  }
+  const row = (l) => `
     <label class="layer-row">
       <input type="checkbox" data-name="${esc(l.name)}" ${state.selected.has(l.name) ? 'checked' : ''}>
       <span><span>${esc(l.title || l.name)}</span>${l.queryable ? '' : ' <small>(non interrogeable)</small>'}
       <div class="ln">${esc(l.name)}</div></span>
-    </label>`).join('') + (rows.length > 400 ? `<p class="hint">${rows.length - 400} couches de plus : affinez le filtre.</p>` : '');
+    </label>`;
+  let html = '', shown = 0;
+  for (const [name, rows] of groups) {
+    if (!rows.length) continue;
+    const cut = rows.slice(0, Math.max(0, 300 - shown));
+    shown += cut.length;
+    html += `<h3 class="group">${esc(name)} <small>(${rows.length})</small></h3>${cut.map(row).join('')}`;
+    if (cut.length < rows.length) { html += `<p class="hint">${rows.length - cut.length} couches de plus : affinez la recherche.</p>`; break; }
+  }
+  $('#layer-list').innerHTML = html || '<p class="empty">Aucune couche ne correspond.</p>';
 }
 
 function syncOverlays() {
@@ -352,6 +403,16 @@ function render(latlng, source, R, errors, wmsResults, opts = {}) {
     return item(`${code ? `<span class="badge">${esc(code)}</span>` : ''}${esc(label || name || 'Servitude')}`,
       [label && name ? name : '', q.typeass || ''].filter(Boolean).join(' · '), q, true);
   }));
+
+  // ---- réseaux
+  const res = Reseaux.near(latlng);
+  const rd = Reseaux.get();
+  html += section('Réseaux à proximité (moins de 15 m)', res.map(({ src, f, d }) => {
+    const q = f.properties || {};
+    return item(`<span class="badge" style="background:${esc(src.color)}">${esc(src.owner)}</span>${esc(src.label)}`,
+      `à ${d < 1 ? 'moins de 1' : Math.round(d)} m`, q);
+  }), rd ? 'Aucun réseau électrique ou gaz connu à moins de 15 m.' : 'Données réseaux pas encore chargées.');
+  html += `<div class="hint">Tracés indicatifs (open data ${esc(rd?.date ? 'du ' + new Date(rd.date).toLocaleDateString('fr-FR') : '')}) : ils ne remplacent pas une DT-DICT avant travaux. Eau et assainissement ne sont pas publiés en open data.${rd?.failed?.length ? ` Non chargés : ${esc(rd.failed.join(', '))}.` : ''}</div>`;
 
   // ---- prescriptions & informations
   html += section('Prescriptions', dedupe(R.prescS.concat(R.prescL, R.prescP)).map((f) => {
@@ -586,12 +647,17 @@ $('#dl-start').addEventListener('click', async () => {
       onProgress: (text, frac) => { msg.textContent = text; prog.value = frac * 0.3; }
     });
     if (!communeLayer.getLayers().length) loadCommune();
+    await Reseaux.download(Offline.meta().bbox, {
+      signal: dl.ctrl.signal,
+      onProgress: (text, frac) => { msg.textContent = text; prog.value = 0.3 + frac * 0.1; }
+    });
+    refreshReseauxLayer();
     const urls = tileUrls();
     if (urls.length) {
       const r = await Offline.downloadTiles(urls, {
         signal: dl.ctrl.signal,
         onProgress: (done, total, failed) => {
-          prog.value = 0.3 + 0.7 * done / total;
+          prog.value = 0.4 + 0.6 * done / total;
           msg.textContent = `Carte : ${done.toLocaleString('fr-FR')} / ${total.toLocaleString('fr-FR')} tuiles${failed ? ` (${failed} en échec)` : ''}`;
         }
       });
@@ -640,7 +706,7 @@ function applyTileZoomCap() {
 }
 
 // ---------------------------------------------------------------- démarrage
-Offline.load().then(() => { updateOfflineBadge(); loadCommune(); });
+Offline.load().then(() => Reseaux.load()).then(() => { refreshReseauxLayer(); updateOfflineBadge(); loadCommune(); });
 applyTileZoomCap();
 loadCapabilities();
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {

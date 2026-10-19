@@ -1,8 +1,8 @@
 // Service worker : l'app fonctionne hors ligne pour son interface ;
 // les données (cadastre, GPU, WMS) restent interrogées en direct.
-const CACHE = 'cadastre-souzy-v2';
+const CACHE = 'cadastre-souzy-v3';
 const TILE_CACHE = 'cadastre-tiles'; // rempli par le bouton « Hors ligne » (offline.js)
-const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'offline.js', 'manifest.webmanifest',
+const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'offline.js', 'reseaux.js', 'manifest.webmanifest',
   'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.css',
   'vendor/leaflet/images/marker-icon.png', 'vendor/leaflet/images/marker-icon-2x.png',
   'vendor/leaflet/images/marker-shadow.png', 'vendor/leaflet/images/layers.png', 'vendor/leaflet/images/layers-2x.png',
