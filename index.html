@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1e5a3c">
+  <title>Cadastre Souzy</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>Cadastre · Souzy-la-Briche</h1>
+    <span>
+      <button id="btn-offline" class="icon-btn" aria-label="Hors ligne" title="Hors ligne">⇩</button>
+      <button id="btn-layers" class="icon-btn" aria-label="Couches WMS" title="Couches WMS">☰</button>
+    </span>
+  </header>
+
+  <div id="map"></div>
+
+  <div class="fab-group">
+    <button id="btn-locate" class="fab" aria-label="Me localiser" title="Me localiser">◎</button>
+    <button id="btn-follow" class="fab small" aria-pressed="false" title="Suivre ma position">Suivre</button>
+  </div>
+
+  <section id="sheet" class="sheet collapsed" aria-live="polite">
+    <button id="sheet-handle" class="sheet-handle" aria-label="Agrandir ou réduire le panneau"><span></span></button>
+    <div id="sheet-summary" class="sheet-summary">Touchez « ◎ » pour vous localiser, ou touchez la carte pour interroger un point.</div>
+    <div id="sheet-body" class="sheet-body"></div>
+  </section>
+
+  <aside id="layers-panel" class="panel hidden" aria-label="Couches WMS">
+    <div class="panel-head">
+      <h2>Couches data.geopf.fr (WMS)</h2>
+      <button id="btn-layers-close" class="icon-btn" aria-label="Fermer">✕</button>
+    </div>
+    <p class="hint">Couches trouvées dans le GetCapabilities de <code>data.geopf.fr/wms-v/ows</code>. Les couches cochées sont affichées sur la carte et interrogées (GetFeatureInfo) à chaque position.</p>
+    <input id="layer-filter" type="search" placeholder="Filtrer (ex. sup, zone, cadastr)…">
+    <label class="toggle"><input type="checkbox" id="show-all-layers"> Afficher toutes les couches du service</label>
+    <div id="layer-list" class="layer-list">Chargement des capacités…</div>
+  </aside>
+
+  <aside id="offline-panel" class="panel hidden" aria-label="Hors ligne">
+    <div class="panel-head">
+      <h2>Utiliser l'app hors ligne</h2>
+      <button id="btn-offline-close" class="icon-btn" aria-label="Fermer">✕</button>
+    </div>
+    <p class="hint">Téléchargez la commune une fois avec du réseau (de préférence en Wi-Fi). Ensuite, la position GPS suffit : parcelles, zonage et servitudes sont lus sur le téléphone.</p>
+    <div id="offline-status" class="item"></div>
+    <fieldset class="opts">
+      <legend>À télécharger</legend>
+      <label><input type="checkbox" checked disabled> Parcelles, document d'urbanisme, zonage, servitudes, prescriptions</label>
+      <label><input type="checkbox" id="dl-plan" checked> Fond de carte Plan IGN + plan cadastral</label>
+      <label><input type="checkbox" id="dl-wms" checked> Couches WMS data.geopf.fr cochées (affichage)</label>
+      <label><input type="checkbox" id="dl-ortho"> Photos aériennes (plus lourd)</label>
+      <label>Niveau de détail maximum
+        <select id="dl-zoom">
+          <option value="17">Moyen (zoom 17)</option>
+          <option value="18" selected>Détaillé (zoom 18)</option>
+          <option value="19">Très détaillé (zoom 19, lourd)</option>
+        </select>
+      </label>
+    </fieldset>
+    <p id="dl-estimate" class="hint"></p>
+    <progress id="dl-progress" max="1" value="0" hidden></progress>
+    <p id="dl-message" class="hint"></p>
+    <div class="btn-row">
+      <button id="dl-start" class="btn primary">Télécharger la commune</button>
+      <button id="dl-cancel" class="btn" hidden>Annuler</button>
+    </div>
+    <label class="toggle"><input type="checkbox" id="prefer-offline"> Toujours utiliser les données téléchargées (plus rapide, sans consommer de données)</label>
+    <div class="btn-row"><button id="dl-clear" class="btn danger">Supprimer les données hors ligne</button></div>
+  </aside>
+
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="offline.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
