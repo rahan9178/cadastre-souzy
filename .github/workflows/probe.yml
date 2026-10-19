@@ -1,0 +1,58 @@
+name: probe-donnees
+on:
+  push:
+    branches: [probe-donnees]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: WMS data.geopf.fr
+        run: |
+          curl -sS -D h.txt -H 'Origin: https://rahan9178.github.io' 'https://data.geopf.fr/wms-v/ows?SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0' -o caps.xml
+          grep -i 'access-control-allow-origin' h.txt || echo "NO CORS HEADER"
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          t=ET.parse('caps.xml'); ns={'w':'http://www.opengis.net/wms'}
+          L=[]
+          for l in t.iter('{http://www.opengis.net/wms}Layer'):
+              n=l.find('w:Name',ns); ti=l.find('w:Title',ns)
+              if n is not None: L.append((n.text, ti.text if ti is not None else '', l.get('queryable')))
+          print('TOTAL', len(L))
+          for n,ti,q in L: print('L|%s|%s|%s'%(n,ti,q))
+          for f in t.iter('{http://www.opengis.net/wms}GetFeatureInfo'):
+              print('GFI formats', [x.text for x in f.findall('w:Format',ns)])
+          PY
+      - name: API Carto GPU 91602
+        run: |
+          for u in 'gpu/municipality?insee=91602' 'cadastre/commune?code_insee=91602'; do
+            echo "== $u"; curl -sS "https://apicarto.ign.fr/api/$u" | head -c 600; echo; done
+          curl -sS -D - -o /dev/null -H 'Origin: https://rahan9178.github.io' 'https://apicarto.ign.fr/api/gpu/municipality?insee=91602' | grep -i access-control || echo "NO CORS apicarto"
+      - name: GetFeatureInfo samples (centre commune)
+        run: |
+          # centre approx Souzy-la-Briche, bbox 3857 autour
+          python3 - <<'PY'
+          import math,subprocess,re
+          lat,lon=48.527,2.151
+          x=lon*20037508.34/180; y=math.log(math.tan((90+lat)*math.pi/360))*6378137
+          h=400
+          names=[l.split('|')[1] for l in open('/dev/stdin')] if False else []
+          PY
+          echo skip
+      - name: Enedis / ODRE catalogues
+        run: |
+          for q in reseau poste poteau; do
+            echo "== enedis search $q"
+            curl -sS "https://data.enedis.fr/api/explore/v2.1/catalog/datasets?limit=50&select=dataset_id&where=search(%22$q%22)" | python3 -c "import json,sys; d=json.load(sys.stdin); print([r['dataset_id'] for r in d.get('results',[])])"
+          done
+          for q in lignes postes canalisation gaz; do
+            echo "== odre search $q"
+            curl -sS "https://odre.opendatasoft.com/api/explore/v2.1/catalog/datasets?limit=50&select=dataset_id&where=search(%22$q%22)" | python3 -c "import json,sys; d=json.load(sys.stdin); print([r['dataset_id'] for r in d.get('results',[])])"
+          done
+          curl -sS -D - -o /dev/null -H 'Origin: https://rahan9178.github.io' 'https://data.enedis.fr/api/explore/v2.1/catalog/datasets?limit=1' | grep -i access-control || echo "NO CORS enedis"
+      - name: Enedis fields + count near Souzy
+        run: |
+          for id in reseau-bt reseau-hta reseau-souterrain-bt reseau-souterrain-hta poste-electrique position-geographique-des-poteaux-hta-et-bt; do
+            echo "== $id"
+            curl -sS "https://data.enedis.fr/api/explore/v2.1/catalog/datasets/$id" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('error_code') or [(f['name'],f['type']) for f in d.get('fields',[])])"
+            curl -sS "https://data.enedis.fr/api/explore/v2.1/catalog/datasets/$id/records?limit=1&where=in_bbox(geo_shape,48.50,2.11,48.55,2.19)" | head -c 700; echo
+          done
